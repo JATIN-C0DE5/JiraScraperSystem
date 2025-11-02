@@ -1,0 +1,76 @@
+# Jira API Configuration
+jira:
+  base_url: "https://issues.apache.org/jira/rest/api/2"
+  timeout: 15000  # 15 seconds
+  max_retries: 5
+  retry_backoff_base: 2  # 2s, 4s, 8s, 16s, 32s
+  
+# Projects to scrape (will auto-select 3 high-quality projects)
+projects:
+  mode: "auto"  # auto-select based on issue count and activity
+  manual_selection: []  # override with specific project keys if needed
+  # Example: ["KAFKA", "HADOOP", "SPARK"]
+  min_issues: 10000  # Only select projects with 10k+ issues
+  preferred_projects:
+    - KAFKA
+    - HADOOP
+    - SPARK
+    - FLINK
+    - HBASE
+    - CASSANDRA
+    - HIVE
+  
+# Scraping behavior
+scraping:
+  page_size: 50
+  max_concurrent_requests: 10
+  fetch_comments: true
+  fetch_attachments: false
+  incremental_update: true  # Only fetch updated issues on reruns
+  rate_limit_delay: 100  # ms between requests
+  
+# Checkpoint system
+checkpoint:
+  enabled: true
+  save_interval: 25  # Save after every 25 issues
+  directory: "data/checkpoints"
+  
+# Gemini API
+gemini:
+  model: "gemini-2.0-flash-exp"
+  api_key_env: "GEMINI_API_KEY"  # Read from environment variable
+  max_retries: 5
+  timeout: 30  # seconds
+  temperature: 0.3  # Lower = more consistent
+  
+# Derived tasks configuration
+tasks:
+  summarization:
+    enabled: true
+    max_tokens: 150
+    
+  classification:
+    enabled: true
+    types: 2  # Generate 2 classification tasks per issue
+    
+  qna:
+    enabled: true
+    pairs_per_issue: 5
+    
+# Logging
+logging:
+  level: "info"  # debug, info, warn, error
+  console: true
+  file: true
+  directory: "logs"
+  rotation: true
+  max_file_size: "10m"
+  max_files: 5
+  
+# Output
+output:
+  format: "jsonl"
+  directory: "data/final"
+  file_per_project: true
+  combined_file: true
+  include_metadata: true

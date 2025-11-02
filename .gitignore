@@ -1,0 +1,47 @@
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Data directories (DO NOT COMMIT)
+data/raw/*
+data/checkpoints/*
+data/processed/*
+data/final/*
+!data/raw/.gitkeep
+!data/checkpoints/.gitkeep
+!data/processed/.gitkeep
+!data/final/.gitkeep
+
+# Logs
+logs/*.log
+logs/*.json
+!logs/.gitkeep
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp

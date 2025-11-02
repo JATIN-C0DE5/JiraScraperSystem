@@ -140,9 +140,22 @@ class JiraScraper {
 
       // Resume from checkpoint
       if (checkpoint && checkpoint.status === 'in_progress') {
-        startAt = checkpoint.lastStartAt;
-        scrapedIssues = checkpoint.partialBatch || [];
-        this.logger.info(`Resuming from checkpoint: startAt=${startAt}`);
+        // If we have a partial file, load it
+        const partialFilePath = path.join('data/raw', `${projectKey}_issues_partial.json`);
+        try {
+          const partialData = await fs.readFile(partialFilePath, 'utf-8');
+          scrapedIssues = JSON.parse(partialData);
+          // Resume from where we have data, not from API pagination position
+          startAt = scrapedIssues.length;
+          this.logger.info(`Loaded ${scrapedIssues.length} issues from partial file`);
+          this.logger.info(`Resuming from checkpoint: startAt=${startAt}`);
+        } catch (error) {
+          // Partial file doesn't exist, use checkpoint position
+          startAt = checkpoint.lastStartAt;
+          scrapedIssues = checkpoint.partialBatch || [];
+          this.logger.info('No partial file found, starting from checkpoint position');
+          this.logger.info(`Resuming from checkpoint: startAt=${startAt}`);
+        }
       }
 
       // Fetch total issue count
@@ -206,8 +219,11 @@ class JiraScraper {
             this.progressBars[projectKey].update(state.scrapedCount);
           }
 
-          // Save checkpoint periodically
+          // Save checkpoint and partial data periodically
           if (this.checkpointManager.shouldSave(pageResult.issues.length)) {
+            // Save partial data file
+            await this.savePartialData(projectKey, scrapedIssues);
+            // Save checkpoint
             await this.checkpointManager.saveCheckpoint(projectKey, state);
           }
 
@@ -218,7 +234,8 @@ class JiraScraper {
           this.stats.apiErrors++;
           this.logger.error(`Error fetching page at startAt=${startAt}`, error);
 
-          // Save checkpoint before stopping
+          // Save partial data and checkpoint before stopping
+          await this.savePartialData(projectKey, scrapedIssues);
           await this.checkpointManager.forceSave(projectKey, state);
           
           throw error;
@@ -227,6 +244,9 @@ class JiraScraper {
 
       // Save final data
       await this.saveProjectData(projectKey, scrapedIssues);
+
+      // Clean up partial file
+      await this.cleanupPartialData(projectKey);
 
       // Mark as completed
       state.status = 'completed';
@@ -378,6 +398,31 @@ class JiraScraper {
   }
 
   /**
+   * Save partial data during scraping (for resume capability)
+   * @param {string} projectKey - Project key
+   * @param {Array<Object>} issues - Issues to save
+   * @returns {Promise<void>}
+   */
+  async savePartialData(projectKey, issues) {
+    const outputPath = path.join('data/raw', `${projectKey}_issues_partial.json`);
+
+    try {
+      // Ensure directory exists
+      await fs.mkdir(path.dirname(outputPath), { recursive: true });
+
+      // Write data atomically (temp file + rename)
+      const tempPath = `${outputPath}.tmp`;
+      await fs.writeFile(tempPath, JSON.stringify(issues, null, 2), 'utf-8');
+      await fs.rename(tempPath, outputPath);
+
+      this.logger.debug(`Saved partial data: ${issues.length} issues to ${outputPath}`);
+    } catch (error) {
+      this.logger.error(`Failed to save partial data for ${projectKey}`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Save project data to file
    * @param {string} projectKey - Project key
    * @param {Array<Object>} issues - Issues to save
@@ -397,6 +442,25 @@ class JiraScraper {
     } catch (error) {
       this.logger.error(`Failed to save data for ${projectKey}`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Clean up partial data file after successful completion
+   * @param {string} projectKey - Project key
+   * @returns {Promise<void>}
+   */
+  async cleanupPartialData(projectKey) {
+    const partialPath = path.join('data/raw', `${projectKey}_issues_partial.json`);
+
+    try {
+      await fs.unlink(partialPath);
+      this.logger.debug(`Cleaned up partial file for ${projectKey}`);
+    } catch (error) {
+      // Ignore if file doesn't exist
+      if (error.code !== 'ENOENT') {
+        this.logger.warn(`Failed to clean up partial file for ${projectKey}`, error);
+      }
     }
   }
 

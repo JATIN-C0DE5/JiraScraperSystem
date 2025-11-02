@@ -22,7 +22,7 @@ projects:
   
 # Scraping behavior
 scraping:
-  page_size: 50
+  page_size: 5  # Fetch 5 issues per batch
   max_concurrent_requests: 10
   fetch_comments: true
   fetch_attachments: false

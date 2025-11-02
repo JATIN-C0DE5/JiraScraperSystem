@@ -11,13 +11,15 @@ import yaml
 from pathlib import Path
 from tqdm import tqdm
 
-# Add src directory to path
+# Add src directory to path for imports
+src_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(src_dir))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from gemini_client import GeminiClient
 from task_generator import TaskGenerator
 from data_transformer import DataTransformer
-from validator import check_data_quality, print_quality_report
+from utils.validator import check_data_quality, print_quality_report
 
 
 def load_config():
@@ -45,11 +47,19 @@ def load_scraped_data(project_key: str, data_dir: str = 'data/raw') -> list:
     Returns:
         List of issues
     """
+    # Try final file first
     file_path = Path(data_dir) / f'{project_key}_issues.json'
     
+    # If not found, try partial file
     if not file_path.exists():
-        print(f"⚠️  Data file not found: {file_path}")
-        return []
+        partial_path = Path(data_dir) / f'{project_key}_issues_partial.json'
+        if partial_path.exists():
+            file_path = partial_path
+            print(f"ℹ️  Using partial file (scraping in progress): {file_path.name}")
+        else:
+            print(f"⚠️  Data file not found: {file_path}")
+            print(f"⚠️  Partial file also not found: {partial_path}")
+            return []
     
     try:
         with open(file_path, 'r') as f:
@@ -88,8 +98,16 @@ def get_project_list(config: dict) -> list:
     # Fallback: scan data/raw directory
     data_dir = Path('data/raw')
     if data_dir.exists():
+        # Look for both final and partial files
         issue_files = list(data_dir.glob('*_issues.json'))
-        return [f.stem.replace('_issues', '') for f in issue_files]
+        partial_files = list(data_dir.glob('*_issues_partial.json'))
+        
+        # Extract project names from both types
+        projects = [f.stem.replace('_issues', '') for f in issue_files]
+        projects.extend([f.stem.replace('_issues_partial', '') for f in partial_files])
+        
+        # Remove duplicates and return
+        return list(set(projects))
     
     return []
 

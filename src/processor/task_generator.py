@@ -102,17 +102,24 @@ class TaskGenerator:
         # Extract key information
         issue_key = issue.get('key', 'UNKNOWN')
         summary = fields.get('summary', 'No summary')
-        description = fields.get('description', 'No description provided')
-        issue_type = fields.get('issuetype', {}).get('name', 'Unknown')
-        priority = fields.get('priority', {}).get('name', 'Unknown')
-        status = fields.get('status', {}).get('name', 'Unknown')
+        description = fields.get('description') or 'No description provided'
         
-        # Assignee and reporter
-        assignee = fields.get('assignee', {})
-        assignee_name = assignee.get('displayName', 'Unassigned') if assignee else 'Unassigned'
+        # Handle None values for nested objects
+        issue_type_obj = fields.get('issuetype') or {}
+        issue_type = issue_type_obj.get('name', 'Unknown') if isinstance(issue_type_obj, dict) else 'Unknown'
         
-        reporter = fields.get('reporter', {})
-        reporter_name = reporter.get('displayName', 'Unknown') if reporter else 'Unknown'
+        priority_obj = fields.get('priority') or {}
+        priority = priority_obj.get('name', 'Unset') if isinstance(priority_obj, dict) else 'Unset'
+        
+        status_obj = fields.get('status') or {}
+        status = status_obj.get('name', 'Unknown') if isinstance(status_obj, dict) else 'Unknown'
+        
+        # Assignee and reporter (handle None)
+        assignee = fields.get('assignee')
+        assignee_name = assignee.get('displayName', 'Unassigned') if assignee and isinstance(assignee, dict) else 'Unassigned'
+        
+        reporter = fields.get('reporter')
+        reporter_name = reporter.get('displayName', 'Unknown') if reporter and isinstance(reporter, dict) else 'Unknown'
         
         # Components
         components = fields.get('components', [])
@@ -123,18 +130,22 @@ class TaskGenerator:
         labels = fields.get('labels', [])
         labels_str = ', '.join(labels) if labels else 'None'
         
-        # Comments
+        # Comments (handle None and missing fields)
         comments = issue.get('comments', [])
+        if comments is None:
+            comments = []
         comments_text = ''
-        if comments:
+        if comments and len(comments) > 0:
             # Include first 3 comments (most relevant)
             for idx, comment in enumerate(comments[:3], 1):
-                author = comment.get('author', {}).get('displayName', 'Unknown')
-                body = comment.get('body', '')
-                # Truncate long comments
-                if len(body) > 500:
-                    body = body[:500] + '...'
-                comments_text += f"\nComment {idx} by {author}:\n{body}\n"
+                if comment and isinstance(comment, dict):
+                    author_obj = comment.get('author') or {}
+                    author = author_obj.get('displayName', 'Unknown') if isinstance(author_obj, dict) else 'Unknown'
+                    body = comment.get('body') or ''
+                    # Truncate long comments
+                    if len(body) > 500:
+                        body = body[:500] + '...'
+                    comments_text += f"\nComment {idx} by {author}:\n{body}\n"
         
         # Truncate very long descriptions
         if len(description) > 3000:
